@@ -35,6 +35,7 @@ func (s *Server) Run() {
 		s.lastLog = err.Error()
 	}
 	s.db.Start()
+	defer s.db.Stop()
 
 	s.status = "running"
 	router.Run(fmt.Sprintf("%s:%d", s.cfg.ServHost, s.cfg.ServPort))
@@ -46,6 +47,7 @@ type queryRow struct {
 
 type queryResponse struct {
 	Result string     `json:"result"`
+	Error string `json:"error"`
 	Rows   []queryRow `json:"rows"`
 }
 
@@ -60,7 +62,8 @@ func (s *Server) execSqlQuery(c *gin.Context) {
 
 	select {
 	case qr := <-respChan:
-		resp.Result = "OK"
+		resp.Result = qr.Status
+		resp.Error = qr.Err.Error()
 		resp.Rows = make([]queryRow, len(qr.Rows))
 		for _, r := range qr.Rows {
 			resp.Rows = append(resp.Rows, queryRow{Fields: r.Fields})

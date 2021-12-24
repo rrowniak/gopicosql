@@ -2,11 +2,13 @@ module gopicosql
 
 go 1.17
 
-require github.com/rrowniak/sqlparser v1.1.0
+require (
+	github.com/gin-gonic/gin v1.7.7
+	github.com/rrowniak/sqlparser v1.1.1
+)
 
 require (
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/gin-gonic/gin v1.7.7 // indirect
 	github.com/go-playground/locales v0.13.0 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
 	github.com/go-playground/validator/v10 v10.4.1 // indirect
@@ -22,4 +24,4 @@ require (
 	gopkg.in/yaml.v2 v2.2.8 // indirect
 )
 
-replace github.com/rrowniak/sqlparser v1.1.0 => ../sqlparser
+//replace github.com/rrowniak/sqlparser v1.1.0 => ../sqlparser
