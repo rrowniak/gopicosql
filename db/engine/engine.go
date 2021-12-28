@@ -1,12 +1,15 @@
 package engine
 
 import (
+	"fmt"
 	"time"
+
 	"github.com/rrowniak/sqlparser"
+	"github.com/rrowniak/sqlparser/query"
 )
 
 func NewDbEngine(cfg *Cfg) (*DbEngine, error) {
-	return &DbEngine{cfg: cfg}, nil
+	return &DbEngine{cfg: cfg, tables: make(map[string]*table)}, nil
 }
 
 type QueryRequest struct {
@@ -25,16 +28,18 @@ type Row struct {
 }
 
 type DbEngine struct {
-	cfg      *Cfg
-	quit     chan struct{}
-	requests chan QueryRequest
+	cfg            *Cfg
+	quit           chan struct{}
+	requests       chan QueryRequest
 	reqWorkersPool chan struct{}
+
+	tables map[string]*table
 }
 
 func (db *DbEngine) Start() {
 	db.quit = make(chan struct{})
 	db.requests = make(chan QueryRequest, db.cfg.MaxDbRequests)
-	db.reqWorkersPool = make(chan struct{}, db.cfg.MaxDbRequests * 2)
+	db.reqWorkersPool = make(chan struct{}, db.cfg.MaxDbRequests*2)
 	go db.main()
 }
 
@@ -54,22 +59,72 @@ func (db *DbEngine) execQuery(req QueryRequest) {
 		<-db.reqWorkersPool
 		req.Resp <- result
 	}()
-	
-	actual, err := sqlparser.ParseMany([]string{req.Sql})
+
+	actual, err := sqlparser.Parse(req.Sql)
 	if err != nil {
 		result.Status = "Syntax error"
 		result.Err = err
 		return
 	}
 
-	result.Status = actual[0].TableName
-	
+	result.Status = "Logic error"
+
+	if actual.Type == query.Create {
+		if _, ok := db.tables[actual.TableName]; ok {
+			result.Err = fmt.Errorf("table %s already exists", actual.TableName)
+			return
+		}
+
+		var sch schema
+
+		for _, f := range actual.Fields {
+			t, ok := actual.Updates[f]
+			if !ok {
+				result.Err = fmt.Errorf("field %s type definition missing", f)
+				return
+			}
+			ft := fieldTypeFromString(t)
+			if ft == UNKNOWN_FIELD_TYPE {
+				result.Err = fmt.Errorf("field %s type is not supported", t)
+				return
+			}
+			sch.name = append(sch.name, f)
+			sch.colType = append(sch.colType, ft)
+		}
+
+		db.tables[actual.TableName] = newTable(actual.TableName, sch)
+		result.Status = "OK"
+		return
+	}
+
+	table, ok := db.tables[actual.TableName]
+
+	if !ok {
+		result.Err = fmt.Errorf("table %s does not exist", actual.TableName)
+		return
+	}
+
+	switch actual.Type {
+	case query.Select:
+		result = table.selectQ(actual)
+	case query.Update:
+		result = table.updateQ(actual)
+	case query.Insert:
+		result = table.insertQ(actual)
+	case query.Delete:
+		result = table.deleteQ(actual)
+	case query.Drop:
+		table.dropQ()
+		result.Status = "OK"
+	case query.CreateIndex:
+		result = table.createIndexQ(actual)
+	}
 }
 
 func (db *DbEngine) processRequests() {
 	for {
 		select {
-		case req := <- db.requests:
+		case req := <-db.requests:
 			db.reqWorkersPool <- struct{}{}
 			go db.execQuery(req)
 		default:

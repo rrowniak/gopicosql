@@ -3,11 +3,25 @@ package rest
 import (
 	"fmt"
 	"gopicosql/db/engine"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+var (
+	WarningLogger *log.Logger
+	InfoLogger    *log.Logger
+	ErrorLogger   *log.Logger
+)
+
+func init() {
+	InfoLogger = log.New(os.Stdout, "[GO-PICO-SQL] INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	WarningLogger = log.New(os.Stdout, "[GO-PICO-SQL] WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
+	ErrorLogger = log.New(os.Stdout, "[GO-PICO-SQL] ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+}
 
 func NewServer(cfg *engine.Cfg) (*Server, error) {
 	return &Server{cfg: cfg}, nil
@@ -47,12 +61,14 @@ type queryRow struct {
 
 type queryResponse struct {
 	Result string     `json:"result"`
-	Error string `json:"error"`
+	Error  string     `json:"error"`
 	Rows   []queryRow `json:"rows"`
 }
 
 func (s *Server) execSqlQuery(c *gin.Context) {
 	sql := c.PostForm("sql")
+
+	InfoLogger.Printf("Received SQL request: '%s'", sql)
 
 	respChan := make(chan engine.QueryResult)
 	r := engine.QueryRequest{Sql: sql, Resp: respChan}
@@ -63,7 +79,9 @@ func (s *Server) execSqlQuery(c *gin.Context) {
 	select {
 	case qr := <-respChan:
 		resp.Result = qr.Status
-		resp.Error = qr.Err.Error()
+		if qr.Err != nil {
+			resp.Error = qr.Err.Error()
+		}
 		resp.Rows = make([]queryRow, len(qr.Rows))
 		for _, r := range qr.Rows {
 			resp.Rows = append(resp.Rows, queryRow{Fields: r.Fields})
