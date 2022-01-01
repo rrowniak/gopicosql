@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/rrowniak/sqlparser"
@@ -9,7 +10,7 @@ import (
 )
 
 func NewDbEngine(cfg *Cfg) (*DbEngine, error) {
-	return &DbEngine{cfg: cfg, tables: make(map[string]*table)}, nil
+	return &DbEngine{cfg: cfg, lockTables: &sync.RWMutex{}, tables: make(map[string]*table)}, nil
 }
 
 type QueryRequest struct {
@@ -29,6 +30,7 @@ type Row struct {
 
 type DbEngine struct {
 	cfg            *Cfg
+	lockTables     *sync.RWMutex
 	quit           chan struct{}
 	requests       chan QueryRequest
 	reqWorkersPool chan struct{}
@@ -70,10 +72,13 @@ func (db *DbEngine) execQuery(req QueryRequest) {
 	result.Status = "Logic error"
 
 	if actual.Type == query.Create {
+		db.lockTables.RLock()
 		if _, ok := db.tables[actual.TableName]; ok {
 			result.Err = fmt.Errorf("table %s already exists", actual.TableName)
+			db.lockTables.RUnlock()
 			return
 		}
+		db.lockTables.RUnlock()
 
 		var sch schema
 
@@ -91,13 +96,17 @@ func (db *DbEngine) execQuery(req QueryRequest) {
 			sch.name = append(sch.name, f)
 			sch.colType = append(sch.colType, ft)
 		}
-
+		db.lockTables.Lock()
 		db.tables[actual.TableName] = newTable(actual.TableName, sch)
+		db.lockTables.Unlock()
+
 		result.Status = "OK"
 		return
 	}
 
+	db.lockTables.RLock()
 	table, ok := db.tables[actual.TableName]
+	db.lockTables.RUnlock()
 
 	if !ok {
 		result.Err = fmt.Errorf("table %s does not exist", actual.TableName)

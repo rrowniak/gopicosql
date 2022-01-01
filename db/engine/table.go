@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/rrowniak/sqlparser/query"
 )
 
 func newTable(name string, sch schema) *table {
-	return &table{name: name, sch: sch}
+	return &table{tableLock: &sync.RWMutex{}, name: name, sch: sch}
 }
 
 type FieldType int
@@ -47,12 +48,16 @@ type record struct {
 }
 
 type table struct {
-	name    string
-	sch     schema
-	records []record
+	tableLock *sync.RWMutex
+	name      string
+	sch       schema
+	records   []record
 }
 
 func (t *table) selectQ(query query.Query) (res QueryResult) {
+	t.tableLock.RLock()
+	defer t.tableLock.RUnlock()
+
 	res.Status = "OK"
 	err := t.validate(query)
 	if err != nil {
@@ -80,6 +85,9 @@ func (t *table) selectQ(query query.Query) (res QueryResult) {
 }
 
 func (t *table) updateQ(query query.Query) (res QueryResult) {
+	t.tableLock.Lock()
+	defer t.tableLock.Unlock()
+
 	res.Status = "OK"
 	err := t.validate(query)
 	if err != nil {
@@ -98,6 +106,9 @@ func (t *table) updateQ(query query.Query) (res QueryResult) {
 }
 
 func (t *table) insertQ(query query.Query) (res QueryResult) {
+	t.tableLock.Lock()
+	defer t.tableLock.Unlock()
+
 	res.Status = "OK"
 	err := t.validate(query)
 	if err != nil {
@@ -117,16 +128,39 @@ func (t *table) insertQ(query query.Query) (res QueryResult) {
 }
 
 func (t *table) deleteQ(query query.Query) (res QueryResult) {
+	t.tableLock.Lock()
+	defer t.tableLock.Unlock()
+
 	res.Status = "OK"
 
 	deleted := 0
-	for i := range t.records {
+	swap_cand := len(t.records) - 1
+	for i := 0; i <= swap_cand; i++ {
 		if t.evalConditions(query.Conditions, &t.records[i]) {
+			// find a swap candidate
 			deleted++
-			t.records[i] = t.records[len(t.records)-deleted]
+			found := false
+			for j := swap_cand; j > i; j-- {
+				if !t.evalConditions(query.Conditions, &t.records[j]) {
+					swap_cand = j
+					found = true
+					break
+				} else {
+					deleted++
+				}
+			}
+
+			if found {
+				t.records[i] = t.records[swap_cand]
+				swap_cand--
+			} else {
+				break
+			}
 		}
 	}
-	t.records = t.records[:len(t.records)-deleted]
+	if deleted != 0 {
+		t.records = t.records[:len(t.records)-deleted]
+	}
 	// TODO: either indexes have to be updated or tombstones should be leveraged
 	return
 }
@@ -136,6 +170,9 @@ func (t *table) dropQ() {
 }
 
 func (t *table) createIndexQ(query query.Query) (res QueryResult) {
+	t.tableLock.RLock()
+	defer t.tableLock.RUnlock()
+
 	err := t.validate(query)
 	if err != nil {
 		res.Err = err
