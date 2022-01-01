@@ -53,6 +53,7 @@ type table struct {
 }
 
 func (t *table) selectQ(query query.Query) (res QueryResult) {
+	res.Status = "OK"
 	err := t.validate(query)
 	if err != nil {
 		res.Err = err
@@ -79,16 +80,25 @@ func (t *table) selectQ(query query.Query) (res QueryResult) {
 }
 
 func (t *table) updateQ(query query.Query) (res QueryResult) {
+	res.Status = "OK"
 	err := t.validate(query)
 	if err != nil {
 		res.Err = err
 		res.Status = "Schema error"
 	}
 
+	t.walkEvery(query.Conditions, func(r *record) {
+		for f, v := range query.Updates {
+			i := t.getFieldIndex(f)
+			r.cells[i] = v
+		}
+	})
+
 	return
 }
 
 func (t *table) insertQ(query query.Query) (res QueryResult) {
+	res.Status = "OK"
 	err := t.validate(query)
 	if err != nil {
 		res.Err = err
@@ -107,6 +117,17 @@ func (t *table) insertQ(query query.Query) (res QueryResult) {
 }
 
 func (t *table) deleteQ(query query.Query) (res QueryResult) {
+	res.Status = "OK"
+
+	deleted := 0
+	for i := range t.records {
+		if t.evalConditions(query.Conditions, &t.records[i]) {
+			deleted++
+			t.records[i] = t.records[len(t.records)-deleted]
+		}
+	}
+	t.records = t.records[:len(t.records)-deleted]
+	// TODO: either indexes have to be updated or tombstones should be leveraged
 	return
 }
 
@@ -238,7 +259,7 @@ func (t *table) evalConditions(conds []query.Condition, r *record) bool {
 }
 
 func (t *table) walkEvery(conds []query.Condition, visitor func(r *record)) {
-	for i, _ := range t.records {
+	for i := range t.records {
 		if t.evalConditions(conds, &t.records[i]) {
 			visitor(&t.records[i])
 		}

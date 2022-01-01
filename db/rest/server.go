@@ -76,11 +76,14 @@ func (s *Server) execSqlQuery(c *gin.Context) {
 
 	resp := queryResponse{}
 
+	status := http.StatusOK
+
 	select {
 	case qr := <-respChan:
 		resp.Result = qr.Status
 		if qr.Err != nil {
 			resp.Error = qr.Err.Error()
+			status = http.StatusBadRequest
 		}
 		resp.Rows = make([]queryRow, len(qr.Rows))
 		for _, r := range qr.Rows {
@@ -88,9 +91,10 @@ func (s *Server) execSqlQuery(c *gin.Context) {
 		}
 	case <-time.After(time.Duration(s.cfg.QueryTimeoutSecs) * time.Second):
 		resp.Result = "query timeout"
+		status = http.StatusServiceUnavailable
 	}
 
-	c.IndentedJSON(http.StatusOK, resp)
+	c.IndentedJSON(status, resp)
 }
 
 func (s *Server) queryStatus(c *gin.Context) {
