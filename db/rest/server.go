@@ -34,6 +34,16 @@ type Server struct {
 	lastLog string
 }
 
+func (s *Server) setUpDbEng() error {
+	var err error
+	s.db, err = engine.NewDbEngine(s.cfg)
+	if err != nil {
+		return err
+	}
+	s.db.Start()
+	return nil
+}
+
 func (s *Server) Run() {
 	// configure Gin server
 	router := gin.Default()
@@ -41,17 +51,15 @@ func (s *Server) Run() {
 	router.GET("/status", s.queryStatus)
 	router.GET("/version", s.queryVersion)
 
-	// set up the db engine
-	var err error
-	s.db, err = engine.NewDbEngine(s.cfg)
+	err := s.setUpDbEng()
 	if err != nil {
 		s.status = "error"
 		s.lastLog = err.Error()
+	} else {
+		defer s.db.Stop()
+		s.status = "running"
 	}
-	s.db.Start()
-	defer s.db.Stop()
 
-	s.status = "running"
 	router.Run(fmt.Sprintf("%s:%d", s.cfg.ServHost, s.cfg.ServPort))
 }
 
@@ -66,17 +74,24 @@ type queryResponse struct {
 }
 
 func (s *Server) execSqlQuery(c *gin.Context) {
+	resp := queryResponse{}
+	status := http.StatusOK
+
 	sql := c.PostForm("sql")
+
+	if sql == "" {
+		WarningLogger.Printf("Received empty query request")
+		resp.Result = "empty query request"
+		status = http.StatusBadRequest
+		c.IndentedJSON(status, resp)
+		return
+	}
 
 	InfoLogger.Printf("Received SQL request: '%s'", sql)
 
 	respChan := make(chan engine.QueryResult)
 	r := engine.QueryRequest{Sql: sql, Resp: respChan}
 	s.db.ProcessQuery(r)
-
-	resp := queryResponse{}
-
-	status := http.StatusOK
 
 	select {
 	case qr := <-respChan:
