@@ -10,3 +10,26 @@ A lightweight SQL database written in Go for prototyping and fast development. A
   - Not supported: JOIN, GROUP, ORDER, UNION, VIEW, etc
 - Persistence based on text files (JSON and CSV) which means easy management, monitoring and troubleshooting
 - Go driver (in progress)
+
+## Building
+A makefile script is used for building the database and all dependencies.
+```bash
+# test & build all
+$ make
+# test & build all #2
+$ make all
+# build all
+$ make build
+# test all
+$ make test
+# open test coverage report in your default browser
+$ make test-cov-html
+# clean all
+$ make clean
+# run database engine (only for testing purposes)
+$ make run
+```
+In addition to the above, you may want to rebuild all dependencies (which will take more time):
+```bash
+$ REBUILD=1 make build
+```
