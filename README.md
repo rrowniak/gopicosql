@@ -1,5 +1,6 @@
 # go-pico-sql
 A lightweight SQL database written in Go for prototyping and fast development. Although at this moment this database is not indended for the production usage, it should be easy to mitgrate to something more mature.
+The database can be built as a docker image.
 
 ## Features
 - In-memory database with persistence, it's fast but all data have to fit in memory.
@@ -28,6 +29,8 @@ $ make test-cov-html
 $ make clean
 # run database engine (only for testing purposes)
 $ make run
+# build docker image
+$ make build-docker
 ```
 In addition to the above, you may want to rebuild all dependencies (which will take more time):
 ```bash

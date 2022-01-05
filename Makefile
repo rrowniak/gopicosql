@@ -24,6 +24,11 @@ build-static: $(PWD)/db/main.go | $(clean)
 	CGO_ENABLED=0 GOOS=linux GOARCH=386 go build $(BUILD_FLAGS) -installsuffix cgo -ldflags '-s' \
 	 -o $(BUILD_DIR)/dbserver_static db/main.go
 
+.PHONY: build-docker
+build-docker: $(PWD)/docker/db/Dockerfile
+	docker build -t rrowniak/gopicosql:latest . -f $(PWD)/docker/db/Dockerfile
+	@echo docker run ...
+
 TEST_DIRS = $(shell go list -f 'TEST-{{.ImportPath}}' ./...)
 .PHONY: $(TEST_DIRS)
 $(TEST_DIRS): | $(clean)
