@@ -11,6 +11,7 @@ The database can be built as a docker image.
   - Not supported: JOIN, GROUP, ORDER, UNION, VIEW, etc
 - Persistence based on text files (JSON and CSV) which means easy management, monitoring and troubleshooting
 - Go driver (in progress)
+- Docker ready
 
 ## Building
 A makefile script is used for building the database and all dependencies.
@@ -31,6 +32,8 @@ $ make clean
 $ make run
 # build docker image
 $ make build-docker
+# run integration tests (more like smoke tests now) in docker (docker-compose required)
+$ integration-tests-docker-compose
 ```
 In addition to the above, you may want to rebuild all dependencies (which will take more time):
 ```bash
