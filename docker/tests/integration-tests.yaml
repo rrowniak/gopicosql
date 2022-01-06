@@ -1,0 +1,10 @@
+version: '2'
+services:
+  dbserver:
+    image: rrowniak/gopicosql:latest
+  testserver:
+    depends_on:
+      - dbserver
+    image: rrowniak/gopicosql-int-tests:latest
+    environment:
+      - HOST=dbserver

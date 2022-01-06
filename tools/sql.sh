@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/bin/sh
 
 HOST=localhost
 PORT=8080
 
-function fail() {
+fail() {
     echo $1
     exit 1
 }

@@ -27,7 +27,14 @@ build-static: $(PWD)/db/main.go | $(clean)
 .PHONY: build-docker
 build-docker: $(PWD)/docker/db/Dockerfile
 	docker build -t rrowniak/gopicosql:latest . -f $(PWD)/docker/db/Dockerfile
-	@echo docker run ...
+
+.PHONY: build-integration-tests-docker
+build-integration-tests-docker: $(PWD)/docker/db/Dockerfile
+	docker build -t rrowniak/gopicosql-int-tests:latest . -f $(PWD)/docker/tests/Dockerfile
+
+.PHONY: integration-tests-docker-compose
+integration-tests-docker-compose: build-integration-tests-docker
+	docker-compose -f ./docker/tests/integration-tests.yaml up --build --remove-orphans  --abort-on-container-exit
 
 TEST_DIRS = $(shell go list -f 'TEST-{{.ImportPath}}' ./...)
 .PHONY: $(TEST_DIRS)

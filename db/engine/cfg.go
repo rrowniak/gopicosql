@@ -4,7 +4,7 @@ func NewConfigDefault() *Cfg {
 	return &Cfg{
 		DbDir:            ".",
 		CompactEverySecs: 60,
-		ServHost:         "127.0.0.1",
+		ServHost:         "",
 		ServPort:         8080,
 		MaxRestRequests:  10,
 		MaxDbRequests:    10,
